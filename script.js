@@ -35,7 +35,7 @@ startBtn.addEventListener('click', async () => {
   });
 
   // Establish WebSocket connection
-  const backendURL = 'https://realtimevoice.vercel.app/api/realtime'; // Replace with your Vercel backend URL
+  const backendURL = 'realtimevoice-jakehasgithubnow-jakes-projects-404e45a8.vercel.app'; // Replace with your Vercel backend URL
   socket = new WebSocket(backendURL);
 
   socket.onopen = () => {
