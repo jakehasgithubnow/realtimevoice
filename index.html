@@ -2,128 +2,18 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Realtime Voice Demo with Heroku Proxy</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            margin-top: 50px;
-        }
-        button {
-            padding: 10px 20px;
-            font-size: 18px;
-        }
-        #output {
-            margin-top: 20px;
-            font-size: 16px;
-            color: green;
-        }
-    </style>
+    <title>Realtime Voice Demo</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>OpenAI Realtime Voice API Demo</h1>
-    <p>Click the button to start streaming audio</p>
-    <button id="startButton">Start Streaming</button>
-    <button id="stopButton" style="display:none">Stop Streaming</button>
-    <div id="output">Output will appear here...</div>
-
-    <script>
-        let socket;
-        let audioStream;
-
-        // Replace with your Heroku proxy URL
-        const proxyUrl = "wss://realtimevoice-c41de07b58b6.herokuapp.com/";
-
-        document.getElementById("startButton").addEventListener("click", () => {
-            startWebSocket();
-            document.getElementById("startButton").style.display = "none";
-            document.getElementById("stopButton").style.display = "inline";
-        });
-
-        document.getElementById("stopButton").addEventListener("click", () => {
-            stopWebSocket();
-            document.getElementById("startButton").style.display = "inline";
-            document.getElementById("stopButton").style.display = "none";
-        });
-
-        function startWebSocket() {
-            socket = new WebSocket(proxyUrl);
-
-            socket.onopen = function () {
-                console.log("WebSocket connection established");
-                startAudioStream();
-            };
-
-            socket.onmessage = function (event) {
-                const data = JSON.parse(event.data);
-                document.getElementById("output").textContent = JSON.stringify(data, null, 2);
-            };
-
-            socket.onerror = function (error) {
-                console.error("WebSocket error:", error);
-                document.getElementById("output").textContent = "WebSocket error occurred.";
-            };
-
-            socket.onclose = function () {
-                console.log("WebSocket connection closed");
-            };
-        }
-
-        function stopWebSocket() {
-            if (socket) {
-                socket.close();
-            }
-            if (audioStream) {
-                audioStream.getTracks().forEach(track => track.stop());
-            }
-        }
-
-        async function startAudioStream() {
-            try {
-                // Request microphone access
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                audioStream = stream;
-
-                const audioContext = new AudioContext();
-                const mediaStreamSource = audioContext.createMediaStreamSource(stream);
-                const processor = audioContext.createScriptProcessor(1024, 1, 1);
-
-                processor.onaudioprocess = function (event) {
-                    const inputBuffer = event.inputBuffer.getChannelData(0);
-                    const pcm16 = convertFloat32ToPCM16(inputBuffer);
-                    const base64Audio = btoa(String.fromCharCode.apply(null, new Uint8Array(pcm16)));
-                    
-                    // Send audio data over WebSocket
-                    const event = {
-                        type: "conversation.item.create",
-                        item: {
-                            type: "message",
-                            role: "user",
-                            content: [{ type: "input_audio", audio: base64Audio }]
-                        }
-                    };
-                    if (socket && socket.readyState === WebSocket.OPEN) {
-                        socket.send(JSON.stringify(event));
-                    }
-                };
-
-                mediaStreamSource.connect(processor);
-                processor.connect(audioContext.destination);
-
-            } catch (err) {
-                console.error('Error accessing audio stream:', err);
-            }
-        }
-
-        function convertFloat32ToPCM16(buffer) {
-            let pcm16 = new Int16Array(buffer.length);
-            for (let i = 0; i < buffer.length; i++) {
-                const s = Math.max(-1, Math.min(1, buffer[i]));
-                pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-            }
-            return pcm16;
-        }
-    </script>
+    <div class="container">
+        <h1>OpenAI Realtime Voice Demo</h1>
+        <button id="recordButton">Start Recording</button>
+        <div id="transcript"></div>
+        <div id="response"></div>
+    </div>
+    <script src="app.js"></script>
 </body>
 </html>
