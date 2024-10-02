@@ -1,0 +1,14 @@
+{
+  "name": "realtimevoice",
+  "version": "1.0.0",
+  "description": "Realtime Voice API Demo",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^10.0.0",
+    "express": "^4.17.1",
+    "ws": "^8.2.3"
+  }
+}
