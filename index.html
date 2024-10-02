@@ -1,22 +1,20 @@
-<!-- index.html -->
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Realtime Voice Demo</title>
-  <link rel="stylesheet" href="styles.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Realtime Voice API Demo</title>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="container">
-    <h1>OpenAI Realtime Voice Demo</h1>
-    <button id="startBtn">Start Recording</button>
-    <button id="stopBtn" disabled>Stop Recording</button>
-    <h2>Response:</h2>
-    <audio id="responseAudio" controls></audio>
-  </div>
-  <script src="script.js"></script>
+    <div class="container">
+        <h1>Realtime Voice API Demo</h1>
+        <div id="status">Status: Disconnected</div>
+        <button id="startButton">Start Conversation</button>
+        <button id="stopButton" disabled>Stop Conversation</button>
+        <div id="conversation"></div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>
