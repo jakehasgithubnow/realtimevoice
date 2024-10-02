@@ -1,6 +1,6 @@
 // script.js
 
-// Replace with your Heroku proxy server URL
+// Replace with your Heroku proxy server WebSocket URL
 const proxyServerUrl = 'wss://realtimevoice-c41de07b58b6.herokuapp.com/';
 
 // Initialize WebSocket connection
@@ -54,47 +54,56 @@ ws.addEventListener('open', () => {
       instructions: 'Please assist the user.',
     },
   };
+
+  console.log('Sending initial event:', initialEvent);
   ws.send(JSON.stringify(initialEvent));
 });
 
 // Handle incoming WebSocket messages
 ws.addEventListener('message', async (event) => {
-  const message = JSON.parse(event.data);
-  console.log('Received:', message);
+  try {
+    const message = JSON.parse(event.data);
+    console.log('Received message from server:', message);
 
-  if (message.type === 'conversation.item.created') {
-    const item = message.item;
-    if (item.role === 'assistant' && item.content) {
-      isResponding = true;
-      interruptButton.disabled = false;
-      for (const contentItem of item.content) {
-        if (contentItem.type === 'text') {
-          addMessageToConversation('assistant', contentItem.text);
-        } else if (contentItem.type === 'audio') {
-          const audioData = contentItem.audio;
-          const audioBlob = base64ToBlob(audioData, 'audio/wav');
-          addAudioToConversation('assistant', audioBlob);
-          playAudioBlob(audioBlob);
+    if (message.type === 'conversation.item.created') {
+      const item = message.item;
+      if (item.role === 'assistant' && item.content) {
+        isResponding = true;
+        interruptButton.disabled = false;
+        for (const contentItem of item.content) {
+          if (contentItem.type === 'text') {
+            addMessageToConversation('assistant', contentItem.text);
+          } else if (contentItem.type === 'audio') {
+            const audioData = contentItem.audio;
+            const audioBlob = base64ToBlob(audioData, 'audio/wav');
+            addAudioToConversation('assistant', audioBlob);
+            playAudioBlob(audioBlob);
+          }
         }
+        isResponding = false;
+        interruptButton.disabled = true;
       }
-      isResponding = false;
-      interruptButton.disabled = true;
+    } else if (message.type === 'error') {
+      console.error('Error from OpenAI API:', message.error);
+      statusDiv.textContent = `Error: ${message.error}`;
+    } else {
+      console.log('Unrecognized message type:', message);
     }
-  } else if (message.type === 'error') {
-    console.error('Error:', message.error);
-    statusDiv.textContent = `Error: ${message.error}`;
+  } catch (error) {
+    console.error('Error processing WebSocket message:', error);
+    statusDiv.textContent = 'Error processing message from server.';
   }
 });
 
-// Handle WebSocket errors
+// Handle WebSocket connection errors
 ws.addEventListener('error', (error) => {
   console.error('WebSocket error:', error);
-  statusDiv.textContent = 'WebSocket Error.';
+  statusDiv.textContent = 'WebSocket connection error.';
 });
 
-// Handle WebSocket close
-ws.addEventListener('close', () => {
-  console.log('Connection closed.');
+// Handle WebSocket connection close
+ws.addEventListener('close', (event) => {
+  console.log('WebSocket connection closed:', event);
   statusDiv.textContent = 'Disconnected.';
   startButton.disabled = true;
   stopButton.disabled = true;
@@ -116,45 +125,53 @@ function base64ToBlob(base64, mime) {
 function playAudioBlob(blob) {
   const audioURL = URL.createObjectURL(blob);
   const audio = new Audio(audioURL);
-  audio.play();
+  audio.play().catch((err) => console.error('Error playing audio:', err));
 }
 
 // Handle Start Recording
 startButton.addEventListener('click', async () => {
   if (isRecording) return;
 
-  // Request microphone access
   try {
+    console.log('Requesting microphone access...');
     audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    console.log('Microphone access granted.');
+
     mediaRecorder = new MediaRecorder(audioStream, { mimeType: 'audio/webm' });
 
     mediaRecorder.ondataavailable = (event) => {
       if (event.data.size > 0 && ws.readyState === WebSocket.OPEN) {
-        // Convert audio data to base64
+        console.log('Recording audio chunk:', event.data);
+
         const reader = new FileReader();
         reader.readAsArrayBuffer(event.data);
         reader.onloadend = () => {
           const arrayBuffer = reader.result;
+
           // Convert to PCM 16-bit little endian, 24kHz, mono
-          convertToPCM16LE(arrayBuffer).then((pcmData) => {
-            const base64Audio = btoa(String.fromCharCode(...pcmData));
-            const audioEvent = {
-              type: 'conversation.item.create',
-              item: {
-                type: 'message',
-                role: 'user',
-                content: [
-                  {
-                    type: 'input_audio',
-                    audio: base64Audio,
-                  },
-                ],
-              },
-            };
-            ws.send(JSON.stringify(audioEvent));
-            // Commit the audio buffer
-            ws.send(JSON.stringify({ type: 'input_audio_buffer.commit' }));
-          });
+          convertToPCM16LE(arrayBuffer)
+            .then((pcmData) => {
+              const base64Audio = btoa(String.fromCharCode(...pcmData));
+              const audioEvent = {
+                type: 'conversation.item.create',
+                item: {
+                  type: 'message',
+                  role: 'user',
+                  content: [
+                    {
+                      type: 'input_audio',
+                      audio: base64Audio,
+                    },
+                  ],
+                },
+              };
+              console.log('Sending audio event:', audioEvent);
+              ws.send(JSON.stringify(audioEvent));
+              ws.send(JSON.stringify({ type: 'input_audio_buffer.commit' }));
+            })
+            .catch((error) => {
+              console.error('Error converting audio:', error);
+            });
         };
       }
     };
@@ -175,13 +192,17 @@ startButton.addEventListener('click', async () => {
 stopButton.addEventListener('click', () => {
   if (!isRecording) return;
 
-  mediaRecorder.stop();
-  audioStream.getTracks().forEach(track => track.stop());
-  isRecording = false;
-  startButton.disabled = false;
-  stopButton.disabled = true;
-  interruptButton.disabled = true;
-  statusDiv.textContent = 'Stopped Recording.';
+  try {
+    mediaRecorder.stop();
+    audioStream.getTracks().forEach((track) => track.stop());
+    isRecording = false;
+    startButton.disabled = false;
+    stopButton.disabled = true;
+    interruptButton.disabled = true;
+    statusDiv.textContent = 'Stopped Recording.';
+  } catch (error) {
+    console.error('Error stopping recording:', error);
+  }
 });
 
 // Handle Interrupt
@@ -190,6 +211,7 @@ interruptButton.addEventListener('click', () => {
     const interruptEvent = {
       type: 'response.cancel',
     };
+    console.log('Sending interrupt event:', interruptEvent);
     ws.send(JSON.stringify(interruptEvent));
     isResponding = false;
     interruptButton.disabled = true;
@@ -199,32 +221,36 @@ interruptButton.addEventListener('click', () => {
 
 // Function to convert audio to PCM 16-bit little endian, 24kHz, mono
 async function convertToPCM16LE(arrayBuffer) {
-  const audioContext = new (window.AudioContext || window.webkitAudioContext)({
-    sampleRate: 24000,
-  });
-  const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-  let channelData = audioBuffer.getChannelData(0); // Mono
+  try {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)({
+      sampleRate: 24000,
+    });
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    let channelData = audioBuffer.getChannelData(0); // Mono
 
-  // Resample if necessary
-  if (audioContext.sampleRate !== 24000) {
-    const offlineContext = new OfflineAudioContext(1, audioBuffer.length, 24000);
-    const bufferSource = offlineContext.createBufferSource();
-    bufferSource.buffer = audioBuffer;
-    bufferSource.connect(offlineContext.destination);
-    bufferSource.start(0);
-    const resampledBuffer = await offlineContext.startRendering();
-    channelData = resampledBuffer.getChannelData(0);
+    // Resample if necessary
+    if (audioContext.sampleRate !== 24000) {
+      const offlineContext = new OfflineAudioContext(1, audioBuffer.length, 24000);
+      const bufferSource = offlineContext.createBufferSource();
+      bufferSource.buffer = audioBuffer;
+      bufferSource.connect(offlineContext.destination);
+      bufferSource.start(0);
+      const resampledBuffer = await offlineContext.startRendering();
+      channelData = resampledBuffer.getChannelData(0);
+    }
+
+    // Convert to 16-bit PCM
+    const pcmData = new Int16Array(channelData.length);
+    for (let i = 0; i < channelData.length; i++) {
+      let s = Math.max(-1, Math.min(1, channelData[i]));
+      pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    }
+
+    // Convert Int16Array to Uint8Array (little endian)
+    const uint8Buffer = new Uint8Array(pcmData.buffer);
+    return uint8Buffer;
+  } catch (error) {
+    console.error('Error converting to PCM:', error);
+    throw error;
   }
-
-  // Convert to 16-bit PCM
-  const pcmData = new Int16Array(channelData.length);
-  for (let i = 0; i < channelData.length; i++) {
-    let s = Math.max(-1, Math.min(1, channelData[i]));
-    pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-  }
-
-  // Convert Int16Array to Uint8Array (little endian)
-  const uint8Buffer = new Uint8Array(pcmData.buffer);
-
-  return uint8Buffer;
 }
