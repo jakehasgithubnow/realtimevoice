@@ -1,0 +1,54 @@
+body {
+  font-family: Arial, sans-serif;
+  margin: 20px;
+}
+
+h1 {
+  text-align: center;
+}
+
+#status {
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+#conversation {
+  border: 1px solid #ccc;
+  padding: 10px;
+  height: 400px;
+  overflow-y: scroll;
+  margin-bottom: 10px;
+  background-color: #f9f9f9;
+}
+
+#conversation .message {
+  margin-bottom: 10px;
+}
+
+#conversation .message.user {
+  text-align: right;
+  color: blue;
+}
+
+#conversation .message.assistant {
+  text-align: left;
+  color: green;
+}
+
+#controls {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+#startButton, #stopButton, #interruptButton {
+  padding: 10px 20px;
+  margin: 5px;
+  font-size: 16px;
+}
+
+#startButton:disabled,
+#stopButton:disabled,
+#interruptButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
