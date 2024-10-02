@@ -20,7 +20,7 @@ async function startConversation() {
         const source = audioContext.createMediaStreamSource(audioStream);
 
         // Update this line with your actual Render.com URL
-        socket = new WebSocket('wss://your-render-app-name.onrender.com');
+        socket = new WebSocket('wss://realtimevoice.onrender.com');
 
         socket.onopen = () => {
             statusElement.textContent = 'Status: Connected';
