@@ -19,7 +19,7 @@ async function startConversation() {
         audioContext = new AudioContext();
         const source = audioContext.createMediaStreamSource(audioStream);
 
-        socket = new WebSocket('wss://your-server-url.com'); // Replace with your server URL
+        socket = new WebSocket('wss://your-render-app-name.onrender.com');
 
         socket.onopen = () => {
             statusElement.textContent = 'Status: Connected';
