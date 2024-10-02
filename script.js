@@ -35,40 +35,46 @@ async function startConversation() {
                 }
             }));
 
-            const processor = audioContext.createScriptProcessor(1024, 1, 1);
-            source.connect(processor);
-            processor.connect(audioContext.destination);
+            // Replace ScriptProcessorNode with AudioWorkletNode
+            audioContext.audioWorklet.addModule('audio-processor.js').then(() => {
+                const audioWorklet = new AudioWorkletNode(audioContext, 'audio-processor');
+                source.connect(audioWorklet).connect(audioContext.destination);
 
-            processor.onaudioprocess = (e) => {
-                const inputData = e.inputBuffer.getChannelData(0);
-                const uint8Array = new Uint8Array(inputData.buffer);
-                if (socket.readyState === WebSocket.OPEN) {
-                    socket.send(JSON.stringify({
-                        type: 'input_audio_buffer.append',
-                        data: btoa(String.fromCharCode.apply(null, uint8Array))
-                    }));
-                }
-            };
+                audioWorklet.port.onmessage = (event) => {
+                    if (socket.readyState === WebSocket.OPEN) {
+                        socket.send(JSON.stringify({
+                            type: 'input_audio_buffer.append',
+                            data: btoa(String.fromCharCode.apply(null, event.data))
+                        }));
+                    }
+                };
+            });
         };
 
-        socket.onmessage = (event) => {
-            const message = JSON.parse(event.data);
-            if (message.type === 'conversation.item.created' && message.item.role === 'assistant') {
-                const content = message.item.content[0];
-                if (content.type === 'text') {
-                    addMessageToConversation('Assistant', content.text);
-                } else if (content.type === 'audio') {
-                    const audioData = atob(content.audio);
-                    const audioBuffer = new ArrayBuffer(audioData.length);
-                    const view = new Uint8Array(audioBuffer);
-                    for (let i = 0; i < audioData.length; i++) {
-                        view[i] = audioData.charCodeAt(i);
-                    }
+        socket.onmessage = async (event) => {
+            try {
+                let message;
+                if (event.data instanceof Blob) {
+                    // Handle binary data (likely audio)
+                    const arrayBuffer = await event.data.arrayBuffer();
+                    const audioBuffer = new ArrayBuffer(arrayBuffer.byteLength);
+                    new Uint8Array(audioBuffer).set(new Uint8Array(arrayBuffer));
                     audioQueue.push(audioBuffer);
                     if (!isPlaying) {
                         playNextAudio();
                     }
+                } else {
+                    // Handle text data (JSON)
+                    message = JSON.parse(event.data);
+                    if (message.type === 'conversation.item.created' && message.item.role === 'assistant') {
+                        const content = message.item.content[0];
+                        if (content.type === 'text') {
+                            addMessageToConversation('Assistant', content.text);
+                        }
+                    }
                 }
+            } catch (error) {
+                console.error('Error processing message:', error);
             }
         };
 
@@ -120,10 +126,10 @@ async function playNextAudio() {
     isPlaying = true;
     const audioBuffer = audioQueue.shift();
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const source = audioContext.createBufferSource();
-
+    
     try {
         const decodedBuffer = await audioContext.decodeAudioData(audioBuffer);
+        const source = audioContext.createBufferSource();
         source.buffer = decodedBuffer;
         source.connect(audioContext.destination);
         source.onended = playNextAudio;
