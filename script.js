@@ -1,98 +1,134 @@
-// script.js
-
-const startBtn = document.getElementById('startBtn');
-const stopBtn = document.getElementById('stopBtn');
-const responseAudio = document.getElementById('responseAudio');
-
-let mediaRecorder;
 let socket;
-let audioChunks = [];
+let mediaRecorder;
+let audioContext;
+let audioStream;
+let audioQueue = [];
+let isPlaying = false;
 
-startBtn.addEventListener('click', async () => {
-  startBtn.disabled = true;
-  stopBtn.disabled = false;
+const startButton = document.getElementById('startButton');
+const stopButton = document.getElementById('stopButton');
+const statusElement = document.getElementById('status');
+const conversationElement = document.getElementById('conversation');
 
-  // Get user audio
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  mediaRecorder = new MediaRecorder(stream);
+startButton.addEventListener('click', startConversation);
+stopButton.addEventListener('click', stopConversation);
 
-  mediaRecorder.start();
+async function startConversation() {
+    try {
+        audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioContext = new AudioContext();
+        const source = audioContext.createMediaStreamSource(audioStream);
 
-  mediaRecorder.addEventListener('dataavailable', event => {
-    audioChunks.push(event.data);
-    // Convert audio chunk to base64 and send to backend
-    const reader = new FileReader();
-    reader.readAsDataURL(event.data);
-    reader.onloadend = () => {
-      const base64data = reader.result.split(',')[1];
-      sendAudioChunk(base64data);
-    };
-  });
+        socket = new WebSocket('wss://your-server-url.com'); // Replace with your server URL
 
-  mediaRecorder.addEventListener('stop', () => {
-    // Handle stopping of recording
-    console.log('Recording stopped');
-  });
+        socket.onopen = () => {
+            statusElement.textContent = 'Status: Connected';
+            startButton.disabled = true;
+            stopButton.disabled = false;
 
-  // Establish WebSocket connection
-  const backendURL = 'realtimevoice-jakehasgithubnow-jakes-projects-404e45a8.vercel.app'; // Replace with your Vercel backend URL
-  socket = new WebSocket(backendURL);
+            socket.send(JSON.stringify({
+                type: 'response.create',
+                response: {
+                    modalities: ['text', 'audio'],
+                    instructions: 'You are a helpful AI assistant. Respond concisely.'
+                }
+            }));
 
-  socket.onopen = () => {
-    console.log('WebSocket connection opened');
-    // Initialize session or send initial events if necessary
-  };
+            const processor = audioContext.createScriptProcessor(1024, 1, 1);
+            source.connect(processor);
+            processor.connect(audioContext.destination);
 
-  socket.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    console.log('Received:', data);
-    // Handle received audio data
-    if (data.type === 'audio_response') {
-      const audioBlob = base64ToBlob(data.audio, 'audio/wav');
-      const audioUrl = URL.createObjectURL(audioBlob);
-      responseAudio.src = audioUrl;
+            processor.onaudioprocess = (e) => {
+                const inputData = e.inputBuffer.getChannelData(0);
+                const uint8Array = new Uint8Array(inputData.buffer);
+                if (socket.readyState === WebSocket.OPEN) {
+                    socket.send(JSON.stringify({
+                        type: 'input_audio_buffer.append',
+                        data: btoa(String.fromCharCode.apply(null, uint8Array))
+                    }));
+                }
+            };
+        };
+
+        socket.onmessage = (event) => {
+            const message = JSON.parse(event.data);
+            if (message.type === 'conversation.item.created' && message.item.role === 'assistant') {
+                const content = message.item.content[0];
+                if (content.type === 'text') {
+                    addMessageToConversation('Assistant', content.text);
+                } else if (content.type === 'audio') {
+                    const audioData = atob(content.audio);
+                    const audioBuffer = new ArrayBuffer(audioData.length);
+                    const view = new Uint8Array(audioBuffer);
+                    for (let i = 0; i < audioData.length; i++) {
+                        view[i] = audioData.charCodeAt(i);
+                    }
+                    audioQueue.push(audioBuffer);
+                    if (!isPlaying) {
+                        playNextAudio();
+                    }
+                }
+            }
+        };
+
+        socket.onerror = (error) => {
+            console.error('WebSocket Error:', error);
+            statusElement.textContent = 'Status: Error';
+        };
+
+        socket.onclose = () => {
+            statusElement.textContent = 'Status: Disconnected';
+            startButton.disabled = false;
+            stopButton.disabled = true;
+        };
+    } catch (error) {
+        console.error('Error starting conversation:', error);
+        statusElement.textContent = 'Status: Error';
     }
-  };
-
-  socket.onerror = (error) => {
-    console.error('WebSocket error:', error);
-  };
-
-  socket.onclose = () => {
-    console.log('WebSocket connection closed');
-  };
-});
-
-stopBtn.addEventListener('click', () => {
-  startBtn.disabled = false;
-  stopBtn.disabled = true;
-  mediaRecorder.stop();
-  socket.close();
-});
-
-function sendAudioChunk(base64Audio) {
-  if (socket.readyState === WebSocket.OPEN) {
-    const event = {
-      type: 'conversation.item.create',
-      item: {
-        type: 'message',
-        role: 'user',
-        content: [{
-          type: 'input_audio',
-          audio: base64Audio
-        }]
-      }
-    };
-    socket.send(JSON.stringify(event));
-  }
 }
 
-function base64ToBlob(base64, type = 'audio/wav') {
-  const byteCharacters = atob(base64);
-  const byteNumbers = new Array(byteCharacters.length);
-  for (let i = 0; i < byteCharacters.length; i++) {
-    byteNumbers[i] = byteCharacters.charCodeAt(i);
-  }
-  const byteArray = new Uint8Array(byteNumbers);
-  return new Blob([byteArray], { type: type });
+function stopConversation() {
+    if (socket) {
+        socket.close();
+    }
+    if (audioStream) {
+        audioStream.getTracks().forEach(track => track.stop());
+    }
+    if (audioContext) {
+        audioContext.close();
+    }
+    startButton.disabled = false;
+    stopButton.disabled = true;
+    statusElement.textContent = 'Status: Disconnected';
+}
+
+function addMessageToConversation(sender, message) {
+    const messageElement = document.createElement('div');
+    messageElement.className = 'message';
+    messageElement.innerHTML = `<strong>${sender}:</strong> ${message}`;
+    conversationElement.appendChild(messageElement);
+    conversationElement.scrollTop = conversationElement.scrollHeight;
+}
+
+async function playNextAudio() {
+    if (audioQueue.length === 0) {
+        isPlaying = false;
+        return;
+    }
+
+    isPlaying = true;
+    const audioBuffer = audioQueue.shift();
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioContext.createBufferSource();
+
+    try {
+        const decodedBuffer = await audioContext.decodeAudioData(audioBuffer);
+        source.buffer = decodedBuffer;
+        source.connect(audioContext.destination);
+        source.onended = playNextAudio;
+        source.start(0);
+    } catch (error) {
+        console.error('Error decoding audio data:', error);
+        playNextAudio();
+    }
 }
