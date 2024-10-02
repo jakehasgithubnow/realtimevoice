@@ -1,54 +1,45 @@
 body {
-  font-family: Arial, sans-serif;
-  margin: 20px;
+    font-family: Arial, sans-serif;
+    background-color: #f0f0f0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+}
+
+.container {
+    background-color: #fff;
+    padding: 20px 40px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    text-align: center;
 }
 
 h1 {
-  text-align: center;
+    margin-bottom: 20px;
 }
 
-#status {
-  margin-bottom: 10px;
-  text-align: center;
+#recordButton {
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    border: none;
+    border-radius: 4px;
+    background-color: #007bff;
+    color: #fff;
+    transition: background-color 0.3s;
 }
 
-#conversation {
-  border: 1px solid #ccc;
-  padding: 10px;
-  height: 400px;
-  overflow-y: scroll;
-  margin-bottom: 10px;
-  background-color: #f9f9f9;
+#recordButton:hover {
+    background-color: #0056b3;
 }
 
-#conversation .message {
-  margin-bottom: 10px;
-}
-
-#conversation .message.user {
-  text-align: right;
-  color: blue;
-}
-
-#conversation .message.assistant {
-  text-align: left;
-  color: green;
-}
-
-#controls {
-  text-align: center;
-  margin-bottom: 20px;
-}
-
-#startButton, #stopButton, #interruptButton {
-  padding: 10px 20px;
-  margin: 5px;
-  font-size: 16px;
-}
-
-#startButton:disabled,
-#stopButton:disabled,
-#interruptButton:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+#transcript, #response {
+    margin-top: 20px;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #fafafa;
+    min-height: 50px;
 }
