@@ -7,7 +7,7 @@ let socket;
 let audioChunks = [];
 
 // Replace with your Heroku backend URL
-const BACKEND_URL = 'https://realtimevoice-new-1095f45e1cdd.herokuapp.com/';
+const BACKEND_URL = 'wss://realtimevoice-new-1095f45e1cdd.herokuapp.com/';
 
 recordButton.addEventListener('click', () => {
     if (recordButton.textContent === 'Start Recording') {
