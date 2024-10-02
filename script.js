@@ -1,7 +1,7 @@
 // script.js
 
 // Replace with your Heroku proxy server URL
-const proxyServerUrl = 'wss://realtimevoice-proxy.herokuapp.com/'; // Update if different
+const proxyServerUrl = 'wss://realtimevoice-c41de07b58b6.herokuapp.com/'; // Update if different
 
 // Initialize WebSocket connection
 const ws = new WebSocket(proxyServerUrl);
